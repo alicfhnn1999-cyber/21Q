@@ -6,7 +6,6 @@ struct ContentView: View {
     
     var body: some View {
         ZStack {
-            // Background gradient
             LinearGradient(
                 gradient: Gradient(colors: [
                     Color(red: 0.1, green: 0.1, blue: 0.2),
@@ -18,7 +17,6 @@ struct ContentView: View {
             .ignoresSafeArea()
             
             VStack(spacing: 40) {
-                // Header
                 VStack(spacing: 10) {
                     Text("عداد علي")
                         .font(.system(size: 32, weight: .bold))
@@ -32,7 +30,6 @@ struct ContentView: View {
                 
                 Spacer()
                 
-                // Points Display
                 VStack(spacing: 20) {
                     Text("النقاط الكلية")
                         .font(.system(size: 18, weight: .semibold))
@@ -53,7 +50,6 @@ struct ContentView: View {
                 
                 Spacer()
                 
-                // Ali Button
                 Button(action: {
                     points += 1
                     showAnimation = true
@@ -89,7 +85,6 @@ struct ContentView: View {
                 .animation(.easeInOut(duration: 0.1), value: showAnimation)
                 .padding(20)
                 
-                // Reset Button
                 Button(action: {
                     points = 0
                 }) {
@@ -107,12 +102,5 @@ struct ContentView: View {
                 .padding(.bottom, 30)
             }
         }
-    }
-}
-
-// MARK: - Preview
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
     }
 }
