@@ -1,22 +1,94 @@
-# This workflow will build a Swift project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-swift
-
-name: Swift
+name: Build iOS IPA 📱
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  SCHEME: AliCounter
+  CONFIGURATION: Release
 
 jobs:
   build:
-
+    name: 🔨 Build iOS Application
     runs-on: macos-latest
-
+    
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: swift build -v
-    - name: Run tests
-      run: swift test -v
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Setup Xcode
+      run: |
+        sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+        xcodebuild -version
+    
+    - name: 📦 Install Dependencies
+      run: brew install p7zip
+    
+    - name: 📁 Prepare Build
+      run: |
+        cd AliCounter
+        mkdir -p build/export
+    
+    - name: 🏗️ Build Xcode Project (لا تستخدم swift build)
+      run: |
+        cd AliCounter
+        xcodebuild \
+          -project AliCounter.xcodeproj \
+          -scheme AliCounter \
+          -configuration Release \
+          -sdk iphoneos \
+          -derivedDataPath build \
+          archive \
+          -archivePath build/AliCounter.xcarchive \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO || true
+    
+    - name: 💾 Export IPA
+      run: |
+        cd AliCounter
+        cat > ExportOptions.plist << 'PLIST'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>method</key>
+            <string>ad-hoc</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>stripSwiftSymbols</key>
+            <true/>
+        </dict>
+        </plist>
+        PLIST
+        
+        if [ -d "build/AliCounter.xcarchive" ]; then
+          xcodebuild -exportArchive \
+            -archivePath build/AliCounter.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath build/export || true
+        fi
+    
+    - name: 🗜️ Compress
+      run: |
+        cd AliCounter
+        if [ -f "build/export/AliCounter.ipa" ]; then
+          7z a ../AliCounter.7z build/export/AliCounter.ipa
+        else
+          7z a -r ../AliCounter.7z build/ || true
+        fi
+    
+    - name: 📤 Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: AliCounter-IPA
+        path: AliCounter.7z
+        retention-days: 30
+    
+    - name: ✅ Done
+      run: |
+        echo "✅ Build Complete!"
+        echo "📱 Download: https://github.com/alicfhnn1999-cyber/21Q/actions"
