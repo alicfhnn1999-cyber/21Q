@@ -2,8 +2,6 @@ name: Build iOS IPA 📱
 
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
@@ -13,11 +11,11 @@ env:
 
 jobs:
   build:
-    name: 🔨 Build iOS Application
+    name: 🔨 Build iOS IPA
     runs-on: macos-latest
     
     steps:
-    - name: 📥 Checkout Code
+    - name: 📥 Checkout
       uses: actions/checkout@v4
     
     - name: 🔧 Setup Xcode
@@ -28,12 +26,13 @@ jobs:
     - name: 📦 Install Dependencies
       run: brew install p7zip
     
-    - name: 📁 Prepare Build
+    - name: 📁 Create Directories
       run: |
         cd AliCounter
+        mkdir -p build
         mkdir -p build/export
     
-    - name: 🏗️ Build Xcode Project (لا تستخدم swift build)
+    - name: 🏗️ Build Archive
       run: |
         cd AliCounter
         xcodebuild \
@@ -42,19 +41,33 @@ jobs:
           -configuration Release \
           -sdk iphoneos \
           -derivedDataPath build \
-          archive \
           -archivePath build/AliCounter.xcarchive \
+          archive \
           CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO || true
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO
     
-    - name: 💾 Export IPA
+    - name: ✅ Verify Archive
       run: |
         cd AliCounter
-        cat > ExportOptions.plist << 'PLIST'
+        if [ -d "build/AliCounter.xcarchive" ]; then
+          echo "✅ Archive Found!"
+          du -sh build/AliCounter.xcarchive
+        else
+          echo "❌ Archive Not Found!"
+          exit 1
+        fi
+    
+    - name: 📋 Create Export Options
+      run: |
+        cd AliCounter
+        cat > /tmp/ExportOptions.plist << 'EOF'
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
         <dict>
+            <key>destination</key>
+            <string>generic/platform=iOS</string>
             <key>method</key>
             <string>ad-hoc</string>
             <key>signingStyle</key>
@@ -63,32 +76,37 @@ jobs:
             <true/>
         </dict>
         </plist>
-        PLIST
-        
-        if [ -d "build/AliCounter.xcarchive" ]; then
-          xcodebuild -exportArchive \
-            -archivePath build/AliCounter.xcarchive \
-            -exportOptionsPlist ExportOptions.plist \
-            -exportPath build/export || true
-        fi
+        EOF
     
-    - name: 🗜️ Compress
+    - name: 💾 Export IPA
+      run: |
+        cd AliCounter
+        xcodebuild \
+          -exportArchive \
+          -archivePath build/AliCounter.xcarchive \
+          -exportOptionsPlist /tmp/ExportOptions.plist \
+          -exportPath build/export \
+          -allowProvisioningUpdates
+    
+    - name: 📊 Verify IPA
       run: |
         cd AliCounter
         if [ -f "build/export/AliCounter.ipa" ]; then
-          7z a ../AliCounter.7z build/export/AliCounter.ipa
+          echo "✅✅✅ IPA CREATED! ✅✅✅"
+          ls -lh build/export/AliCounter.ipa
         else
-          7z a -r ../AliCounter.7z build/ || true
+          echo "❌ IPA not found!"
+          ls -la build/export/
         fi
     
-    - name: 📤 Upload
+    - name: 📤 Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: AliCounter-IPA
-        path: AliCounter.7z
-        retention-days: 30
+        path: AliCounter/build/export/AliCounter.ipa
+        retention-days: 90
     
-    - name: ✅ Done
+    - name: ✅ Build Complete
       run: |
-        echo "✅ Build Complete!"
-        echo "📱 Download: https://github.com/alicfhnn1999-cyber/21Q/actions"
+        echo "✅ BUILD COMPLETED!"
+        echo "📱 Download from: https://github.com/alicfhnn1999-cyber/21Q/actions"
