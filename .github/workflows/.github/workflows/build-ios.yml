@@ -1,155 +1,56 @@
-name: Build iOS IPA 📱
+name: Build iOS IPA
 
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
-env:
-  SCHEME: AliCounter
-  CONFIGURATION: Release
-
 jobs:
   build:
-    name: 🔨 Build iOS Application
     runs-on: macos-latest
-    
     steps:
-    - name: 📥 Checkout Code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
     
-    - name: 🔧 Setup Xcode
-      run: |
-        sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
-        xcodebuild -version
-        echo "✅ Xcode Ready"
+    - name: Setup Xcode
+      run: sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
     
-    - name: 📦 Install Dependencies
-      run: |
-        brew install p7zip
-        echo "✅ Dependencies Installed"
-    
-    - name: 📁 Prepare Directories
+    - name: Build Archive
       run: |
         cd AliCounter
-        mkdir -p build
-        mkdir -p build/export
-        echo "✅ Directories Ready"
-    
-    - name: 🏗️ Build Archive
-      run: |
-        cd AliCounter
-        echo "🔨 Building Archive..."
         xcodebuild archive \
-          -scheme ${{ env.SCHEME }} \
-          -configuration ${{ env.CONFIGURATION }} \
+          -scheme AliCounter \
+          -configuration Release \
           -sdk iphoneos \
           -derivedDataPath build \
-          -archivePath build/${{ env.SCHEME }}.xcarchive \
+          -archivePath build/AliCounter.xcarchive \
           CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO \
-          PROVISIONING_PROFILE_SPECIFIER="" || true
-        echo "✅ Archive Complete"
+          CODE_SIGNING_REQUIRED=NO
     
-    - name: ✅ Verify Archive
+    - name: Export IPA
       run: |
         cd AliCounter
-        if [ -d "build/${{ env.SCHEME }}.xcarchive" ]; then
-          echo "✅ Archive Found!"
-          du -sh build/${{ env.SCHEME }}.xcarchive
-        else
-          echo "⚠️ Archive Not Found"
-        fi
-    
-    - name: 💾 Export IPA
-      run: |
-        cd AliCounter
-        echo "📦 Creating Export Options..."
-        cat > ExportOptions.plist << 'PLIST'
+        cat > /tmp/ExportOptions.plist << 'EOF'
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
         <dict>
-            <key>destination</key>
-            <string>generic/platform=iOS</string>
             <key>method</key>
             <string>ad-hoc</string>
             <key>signingStyle</key>
             <string>automatic</string>
             <key>stripSwiftSymbols</key>
             <true/>
-            <key>teamID</key>
-            <string></string>
         </dict>
         </plist>
-        PLIST
-        
-        echo "📤 Exporting IPA..."
-        if [ -d "build/${{ env.SCHEME }}.xcarchive" ]; then
-          xcodebuild -exportArchive \
-            -archivePath build/${{ env.SCHEME }}.xcarchive \
-            -exportOptionsPlist ExportOptions.plist \
-            -exportPath build/export \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO || true
-          echo "✅ Export Complete"
-        fi
+        EOF
+        xcodebuild -exportArchive \
+          -archivePath build/AliCounter.xcarchive \
+          -exportOptionsPlist /tmp/ExportOptions.plist \
+          -exportPath build/export
     
-    - name: 📊 Verify IPA
-      run: |
-        cd AliCounter
-        echo "=== Checking IPA ==="
-        if [ -f "build/export/${{ env.SCHEME }}.ipa" ]; then
-          echo "✅ IPA Created Successfully!"
-          ls -lh build/export/${{ env.SCHEME }}.ipa
-        else
-          echo "⚠️ IPA Not Found - Archiving Build Folder"
-        fi
-    
-    - name: 🗜️ Compress to 7z
-      run: |
-        cd AliCounter
-        echo "🗜️ Compressing..."
-        
-        if [ -f "build/export/${{ env.SCHEME }}.ipa" ]; then
-          7z a ../AliCounter.7z build/export/${{ env.SCHEME }}.ipa
-          echo "✅ IPA Compressed"
-        else
-          7z a -r ../AliCounter.7z build/ -x!"build/Intermediates*"
-          echo "✅ Build Folder Compressed"
-        fi
-    
-    - name: 📤 Upload to GitHub
+    - name: Upload IPA
       uses: actions/upload-artifact@v4
       with:
         name: AliCounter-IPA
-        path: AliCounter.7z
-        retention-days: 30
-      continue-on-error: true
-    
-    - name: 📋 Build Report
-      run: |
-        cat << 'REPORT'
-        
-        ╔═══════════════════════════════════════════╗
-        ║   ✅ BUILD COMPLETED SUCCESSFULLY ✅      ║
-        ╚═══════════════════════════════════════════╝
-        
-        📱 PROJECT: AliCounter
-        🔢 BUILD #${{ github.run_number }}
-        🌳 BRANCH: ${{ github.ref_name }}
-        
-        ⬇️  DOWNLOAD HERE:
-        👉 https://github.com/alicfhnn1999-cyber/21Q/actions
-        
-        STEPS:
-        1️⃣  Go to Actions Link Above
-        2️⃣  Click Latest Run (Green ✅)
-        3️⃣  Scroll Down to "Artifacts"
-        4️⃣  Download "AliCounter-IPA"
-        5️⃣  Extract: 7z x AliCounter.7z
-        
-        ╚═══════════════════════════════════════════╝
-        REPORT
+        path: AliCounter/build/export/AliCounter.ipa
+        retention-days: 90
